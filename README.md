@@ -43,10 +43,15 @@ python scripts/build_task_envs.py --task-ids rich_3278 rich_3521   # omit --task
 
 The agent is in `agents/gemma_baseline/`: frozen Gemma 4, the raw text transcript, all nine harness tools, and no adapters or sub-agents.
 
+Download the weights on PACE with `python scripts/download_model.py`, then run:
+
 ```bash
 python scripts/run_eval.py --run-name baseline_12b_seed1 --seed 1 \
-  --model-path models/gemma-4-12b-it-qat-w4a16-ct --task-envs envs --concurrency 4
+  --model-path models/gemma-4-12b-it-qat-w4a16-ct --task-envs envs \
+  --task-list tasks/valid_tasks.json --concurrency 4
 ```
+
+On PACE, use `sbatch --array=1-3 slurm/baseline.sbatch`. `tasks/valid_tasks.json` lists the tasks where the reference patch passes and an empty patch fails, from `scripts/validation_report.py`.
 
 Use `--endpoint http://host:port/v1` instead of `--model-path` to use a server that is already running. Rerun the same `--run-name` to resume.
 

@@ -116,6 +116,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--task-envs', type=Path, help='Folder from build_task_envs.py')
     parser.add_argument('--concurrency', type=int, default=1)
     parser.add_argument('--task-ids', nargs='+', help='Only these tasks')
+    parser.add_argument('--task-list', type=Path, help='JSON list of task ids to run')
     parser.add_argument('--repos', nargs='+', help='Only these repos, such as psf/requests')
     parser.add_argument('--limit', type=int, help='Only the first N selected tasks')
     server = parser.add_mutually_exclusive_group()
@@ -152,6 +153,9 @@ def select_tasks(args: argparse.Namespace, run_dir: Path) -> tuple[list[str], in
         if missing:
             sys.exit(f'Unknown task ids: {missing}')
         tasks = [t for t in tasks if t.instance_id in set(args.task_ids)]
+    if args.task_list:
+        allowed = set(json.loads(args.task_list.read_text(encoding='utf-8')))
+        tasks = [t for t in tasks if t.instance_id in allowed]
     if args.repos:
         tasks = [t for t in tasks if t.repo in set(args.repos)]
     if args.limit:
