@@ -219,5 +219,12 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Competition data (symlink to scratch; download with SETUP.md)
+# Competition Kaggle data (From Dylan push, symlink to scratch; download with SETUP.md)
 data
+
+# Project: large or generated files stay out of Git
+data/
+vendor/
+models/
+results/
+submission*.zip
