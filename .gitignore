@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project: large or generated files stay out of Git
+data/
+vendor/
+models/
+results/
+submission*.zip
