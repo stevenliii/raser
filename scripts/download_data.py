@@ -30,9 +30,14 @@ def list_files() -> list[str]:
         out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
         lines = out.splitlines()
         token = None
-        if lines and lines[0].startswith('Next Page Token'):
-            token = lines.pop(0).split('=', 1)[1].strip()
-        names += [row['name'] for row in csv.DictReader(io.StringIO('\n'.join(lines)))]
+        for line in lines:
+            if line.startswith('Next Page Token'):
+                token = line.split('=', 1)[1].strip()
+        # The CLI can print warnings before the CSV, so start at the header.
+        header = next((i for i, line in enumerate(lines) if line.startswith('name,')), None)
+        if header is None:
+            raise SystemExit(f'Unexpected output from the Kaggle CLI:\n{out}')
+        names += [row['name'] for row in csv.DictReader(io.StringIO('\n'.join(lines[header:])))]
         if not token:
             return names
 

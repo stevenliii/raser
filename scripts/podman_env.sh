@@ -4,7 +4,10 @@
 : "${SLURM_JOB_ID:?Run this inside a Slurm job}"
 
 PODMAN_DIR="/tmp/$USER/podman-$SLURM_JOB_ID"
-mkdir -p "$PODMAN_DIR"
+mkdir -p "$PODMAN_DIR/xdg"
+chmod 700 "$PODMAN_DIR/xdg"
+# sbatch copies the submitting shell's value, which may not exist inside this job.
+export XDG_RUNTIME_DIR="$PODMAN_DIR/xdg"
 cat > "$PODMAN_DIR/storage.conf" <<CONF
 [storage]
 driver = "overlay"
