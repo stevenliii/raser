@@ -1,6 +1,6 @@
 # raser
 
-CS 4644/7643 project: structured state representations for RL-trained, local software engineering agents, built on the [Gemma 4 Developer Agent Competition](https://www.kaggle.com/competitions/gemma-4-developer-agent).
+Structured state representations for RL-trained, local software engineering agents, built on the [Gemma 4 Developer Agent Competition](https://www.kaggle.com/competitions/gemma-4-developer-agent).
 
 ## Where things run
 
