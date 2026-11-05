@@ -22,11 +22,22 @@ On a Linux machine with NVIDIA GPUs, use `scripts/setup_env.sh --gpu` to install
 Grading a task's reference patch should pass, and grading an empty patch should fail. This needs no model.
 
 ```bash
-python scripts/run_eval.py --run-name validate_reference --mode reference --task-ids rich_3278 rich_3521
-python scripts/run_eval.py --run-name validate_empty --mode empty --task-ids rich_3278 rich_3521
+python scripts/build_task_envs.py --task-ids rich_3278 rich_3521
+python scripts/run_eval.py --run-name validate_reference --mode reference --task-envs envs --task-ids rich_3278 rich_3521
+python scripts/run_eval.py --run-name validate_empty --mode empty --task-envs envs --task-ids rich_3278 rich_3521
 ```
 
 Run both on all tasks before reporting results. Omit `--task-ids` to do that.
+
+## Per-task environments
+
+The harness installs one set of package versions for every task, which breaks tasks from different commits. `scripts/build_task_envs.py` builds a package archive for each task from its own requirements, using versions available on the task's date. Pass the folder to `run_eval.py` with `--task-envs envs`.
+
+```bash
+python scripts/build_task_envs.py --task-ids rich_3278 rich_3521   # omit --task-ids for all tasks
+```
+
+`envs/manifest.json` records whether each task used its date cutoff or needed a fallback. The diagnosis behind this came from zbigniewkirchner's public notebook, [Do Gold Patches Pass Locally?](https://www.kaggle.com/code/zbigniewkirchner/gemma-4-agent-do-gold-patches-pass-locally).
 
 ## Experiment 1: Gemma baseline
 
@@ -34,7 +45,7 @@ The agent is in `agents/gemma_baseline/`: frozen Gemma 4, the raw text transcrip
 
 ```bash
 python scripts/run_eval.py --run-name baseline_12b_seed1 --seed 1 \
-  --model-path models/gemma-4-12b-it-qat-w4a16-ct --concurrency 4
+  --model-path models/gemma-4-12b-it-qat-w4a16-ct --task-envs envs --concurrency 4
 ```
 
 Use `--endpoint http://host:port/v1` instead of `--model-path` to use a server that is already running. Rerun the same `--run-name` to resume.
@@ -54,5 +65,6 @@ This reports resolution rate and tool calls for each run, and a bootstrap interv
 ## Known issues
 
 - **Subprocess sandbox:** `--sandbox subprocess` skips test dependency installation and imports packages from the harness environment, so correct patches can fail. Use it only to debug the harness.
-- **PACE ICE:** PACE has no Docker, so jobs source `scripts/podman_env.sh` to get a Docker-compatible Podman socket. Test it with `mkdir -p results/slurm && sbatch slurm/test_sandbox.sbatch`.
+- **PACE ICE:** PACE has no Docker, so jobs source `scripts/podman_env.sh` to get a Docker-compatible Podman socket. Building the image fails there, so build it on a machine with Docker, run `docker save swebench-sandbox:latest -o data/sandbox_image.tar`, and copy that file to `data/` on PACE. Podman doesn't enforce the sandbox's CPU and memory limits there.
+- **Differences from Kaggle's setup:** the image pins pytest, puts the task's code first on `PYTHONPATH`, and uses per-task packages, so local scores aren't directly comparable to Kaggle's.
 - **Kept out of Git:** `data/`, `vendor/`, `models/`, `results/` and submission zips.

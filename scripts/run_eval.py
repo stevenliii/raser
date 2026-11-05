@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextvars
 import json
 import os
 import platform
@@ -51,6 +52,7 @@ from google.adk.apps._configs import EventsCompactionConfig  # noqa: E402
 from google.adk.models.lite_llm import LiteLlm  # noqa: E402
 from swegemma.config import EvalConfig, build_submission_limits  # noqa: E402
 from swegemma.evaluate import Evaluator  # noqa: E402
+from swegemma.harness import container_setup  # noqa: E402
 from swegemma.models import load_tasks  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,11 +70,37 @@ VLLM_EXTRA_ARGS = {
 }
 
 
-class ReferencePatchEvaluator(Evaluator):
+CURRENT_TASK: contextvars.ContextVar[str] = contextvars.ContextVar('current_task')
+
+
+class TaskEvaluator(Evaluator):
+    """Record which task is running, so sandbox setup can find that task's packages."""
+
+    async def evaluate_task(self, task, *args, **kwargs):
+        token = CURRENT_TASK.set(task.instance_id)
+        try:
+            return await super().evaluate_task(task, *args, **kwargs)
+        finally:
+            CURRENT_TASK.reset(token)
+
+
+class ReferencePatchEvaluator(TaskEvaluator):
     """Skip the agent and grade the task's reference patch with the real verifier."""
 
     async def _run_agent_sandbox(self, task, snapshot_path, task_index, total_tasks, **kwargs):
         return task.patch, None, SessionTrace()
+
+
+def use_task_envs(env_dir: Path) -> None:
+    """Replace the harness's one-size-fits-all wheel step with the task's own archive."""
+
+    def install(docker, container_id, repo, config=None):
+        archive = env_dir / f'{CURRENT_TASK.get()}.tar'
+        if not archive.exists():
+            raise FileNotFoundError(f'No package archive for this task: {archive}')
+        container_setup._extract_tar_into_site_packages(docker, container_id, archive)
+
+    container_setup._ensure_container_site_packages = install
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,6 +113,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--seed', type=int, default=None, help='Sampling seed')
     parser.add_argument('--sandbox', choices=['docker', 'subprocess'], default='docker')
     parser.add_argument('--image', default='swebench-sandbox:latest', help='Docker sandbox image')
+    parser.add_argument('--task-envs', type=Path, help='Folder from build_task_envs.py')
     parser.add_argument('--concurrency', type=int, default=1)
     parser.add_argument('--task-ids', nargs='+', help='Only these tasks')
     parser.add_argument('--repos', nargs='+', help='Only these repos, such as psf/requests')
@@ -230,6 +259,7 @@ def main() -> None:
                 'mode': args.mode,
                 'sandbox': args.sandbox,
                 'image': args.image,
+                'task_envs': str(args.task_envs) if args.task_envs else None,
                 'budgets': budgets,
                 'tasks': task_ids,
                 'host': platform.node(),
@@ -274,7 +304,9 @@ def main() -> None:
         concurrency=args.concurrency,
         display_mode='quiet',
     )
-    evaluator_class = ReferencePatchEvaluator if args.mode == 'reference' else Evaluator
+    if args.task_envs:
+        use_task_envs(args.task_envs.resolve())
+    evaluator_class = ReferencePatchEvaluator if args.mode == 'reference' else TaskEvaluator
     try:
         result = asyncio.run(evaluator_class(config).run())
     finally:
