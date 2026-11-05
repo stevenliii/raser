@@ -30,8 +30,9 @@ OWN_PACKAGE = {
     'encode/httpx': 'httpx',
 }
 # Runtime dependencies that these repos declare in setup.py rather than a readable file.
+# Requests also needs Flask below 2.3: httpbin's flasgger dependency imports names it removed.
 EXTRA_REQUIREMENTS = {
-    'psf/requests': ['urllib3', 'certifi', 'idna', 'charset-normalizer', 'PySocks'],
+    'psf/requests': ['urllib3', 'certifi', 'idna', 'charset-normalizer', 'PySocks', 'flask<2.3', 'werkzeug<3'],
     'encode/httpx': ['h11', 'httpcore', 'anyio', 'sniffio', 'idna'],
 }
 # Development tools the tests don't import. The sandbox image provides pytest.
