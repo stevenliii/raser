@@ -113,19 +113,36 @@ Then run the full baseline, with one job per seed:
 sbatch --array=1-3 slurm/baseline.sbatch
 ```
 
-Each seed is a repeat of the same run. The model samples its answers, so the same agent solves different tasks on different runs, and three seeds show how much of a difference is chance. On one A100 with the default 4 tasks at a time, each seed takes a little over 2 hours.
+Results go to `results/baseline_12b_calls50_seed<N>`. Each seed is a repeat of the same run. The model samples its answers, so the same agent solves different tasks on different runs, and three seeds show how much of a difference is chance.
+
+Runs end at 50 tool calls, with a 15-minute time limit only as a safety net. A tool call limit means the same thing on any GPU, while real time depends on the GPU and on how many tasks share it. At about 8 seconds per model call, a seed should take about 3–4 hours. Keep the GPU type, `CONCURRENCY` and limits the same across experiments you compare anyway.
 
 To check on running jobs:
 
 ```bash
 squeue -u $USER
-for s in 1 2 3; do echo "seed $s: $(cat results/baseline_12b_seed$s/part-*/task_results.jsonl 2>/dev/null | wc -l)/112"; done
-python scripts/summarize.py results/baseline_12b_seed*
+for s in 1 2 3; do echo "seed $s: $(cat results/baseline_12b_calls50_seed$s/part-*/task_results.jsonl 2>/dev/null | wc -l)/112"; done
+python scripts/summarize.py results/baseline_12b_calls50_seed*
 ```
 
 The counts should rise to `112` and `errors` should stay at `0`. `budget` counts runs that hit the time or tool call limit, which is normal. If a seed leaves `squeue` before reaching `112`, resume it with `sbatch -t 06:00:00 --array=<seed> slurm/baseline.sbatch`.
 
-The `max_time_minutes` limit in `eval_config.yaml` counts real time, and tasks running at the same time share the GPU. Keep the GPU type, `CONCURRENCY` and limits the same across experiments you compare, because changing them can change the score.
+Each attempt's folder has `vllm.log`, which reports vLLM's throughput and prefix cache hit rate every few seconds:
+
+```bash
+grep "throughput" results/<run>/part-001/vllm.log | tail -5
+```
+
+### Speculative decoding
+
+`--speculative-ngram 4` turns on vLLM's n-gram speculative decoding, which guesses up to 4 tokens by matching text already in the prompt and keeps only what the model would have produced. It should speed up output that copies from the code, without changing what the agent does. Test it on a few tasks before using it for a full run, and use the same setting for every run you compare:
+
+```bash
+RUN_NAME=spec_off sbatch -t 01:00:00 slurm/baseline.sbatch --limit 5
+RUN_NAME=spec_on sbatch -t 01:00:00 slurm/baseline.sbatch --limit 5 --speculative-ngram 4 --port 8011
+```
+
+The second job uses another port in case both land on the same node. Compare the generation throughput in each run's `vllm.log`, and `duration_seconds` and `tool_calls` in `task_results.jsonl`. Five tasks is a small sample, so look for a large difference.
 
 The job asks for one A100. To use another GPU, add `--gres=gpu:<type>:1`, such as `h100`, `h200`, `l40s` or `a40`. Don't use `v100`, which doesn't support the `bfloat16` format this model needs, and `rtx_6000` has the same limitation as far as we know. Don't use `mi210` or `r9700`, which are AMD cards. If a job waits for a long time, ask for less: a shorter time limit with `-t`, and fewer CPUs with `-c 8 --mem=64G` and `CONCURRENCY=1`. Resubmit a job to resume it.
 
@@ -134,9 +151,9 @@ Always use `scripts/run_eval.py` rather than `swegemma eval`, because the CLI ig
 ## 5. Results
 
 ```bash
-python scripts/summarize.py results/baseline_12b_seed* \
+python scripts/summarize.py results/baseline_12b_calls50_seed* \
   --valid-from results/validate_reference --invalid-from results/validate_empty \
-  --csv results/baseline_12b_per_task.csv
+  --csv results/baseline_12b_calls50_per_task.csv
 ```
 
 This reports resolution rate and tool calls for each run, and a bootstrap interval across tasks. To make a Kaggle submission, run `python scripts/package_submission.py --agent agents/gemma_baseline`.
@@ -158,9 +175,9 @@ scp <username>@login-ice.pace.gatech.edu:~/scratch/raser/results/saved/baseline_
 
 Each archive has `task_results.jsonl` with one row per task, plus the agent's patches, test output and full traces. To look through one, extract it with `tar -xzf reports/baseline_12b/baseline_12b_seed1.tar.gz -C results`.
 
-### Experiment 1 results
+### Experiment 1 results with a 4-minute limit
 
-Frozen Gemma 4 12B on the 112 valid tasks, with 3 seeds on one A100. The archives are in `reports/baseline_12b/`.
+Frozen Gemma 4 12B on the 112 valid tasks, with 3 seeds on one A100, 4 tasks at a time, and a 4-minute limit per task chosen to fit Kaggle's 12-hour window. These runs are named `baseline_12b_seed<N>`, and the archives are in `reports/baseline_12b/`. The rerun ending at 50 tool calls replaces them as the main baseline.
 
 | | Seed 1 | Seed 2 | Seed 3 | Mean |
 |---|---|---|---|---|

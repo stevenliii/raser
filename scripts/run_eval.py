@@ -124,6 +124,10 @@ def parse_args() -> argparse.Namespace:
     server.add_argument('--endpoint', help='Use a running OpenAI-compatible server')
     parser.add_argument('--gpus', type=int, help='GPUs for vLLM; defaults to all visible')
     parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument(
+        '--speculative-ngram', type=int, metavar='N',
+        help='Propose N tokens by matching text already in the prompt (vLLM n-gram speculative decoding)',
+    )
     args = parser.parse_args()
     if args.mode == 'agent' and not (args.model_path or args.endpoint):
         parser.error('agent mode needs --model-path or --endpoint')
@@ -171,7 +175,13 @@ def select_tasks(args: argparse.Namespace, run_dir: Path) -> tuple[list[str], in
     return [t.instance_id for t in tasks if t.instance_id not in finished], len(parts)
 
 
-def build_models(args: argparse.Namespace, agent_dir: Path, model: str):
+def speculative_config(args: argparse.Namespace) -> dict | None:
+    if not args.speculative_ngram:
+        return None
+    return {'method': 'ngram', 'num_speculative_tokens': args.speculative_ngram, 'prompt_lookup_max': 4}
+
+
+def build_models(args: argparse.Namespace, agent_dir: Path, model: str, log_path: Path):
     """Return (model registry, adapters, running vLLM server or None)."""
     adapters = discover_adapters(str(agent_dir))
     if args.mode != 'agent':
@@ -209,8 +219,13 @@ def build_models(args: argparse.Namespace, agent_dir: Path, model: str):
         tensor_parallel_size=gpus,
         startup_timeout=60 * 20,
         extra_args=VLLM_EXTRA_ARGS.get(model, ()),
+        speculative_config=speculative_config(args),
     )
     server = VllmServer(config, adapter_manifest=adapters)
+    # Write vLLM's log, including its throughput and cache statistics, into the run folder.
+    # The harness otherwise writes it to a temporary file and deletes it on stop.
+    Path(server.log_path).unlink(missing_ok=True)
+    server.log_path = str(log_path)
     server.start()
     models = server.create_model_registry(aliases=[model], model_prefix='openai/', api_key='EMPTY')
     return models, adapters, server
@@ -265,6 +280,7 @@ def main() -> None:
                 'image': args.image,
                 'task_envs': str(args.task_envs) if args.task_envs else None,
                 'budgets': budgets,
+                'speculative_config': speculative_config(args),
                 'tasks': task_ids,
                 'host': platform.node(),
                 'versions': {p: version(p) for p in ('swegemma', 'adk-submission', 'google-adk')},
@@ -276,7 +292,7 @@ def main() -> None:
 
     litellm.drop_params = True
     install_litellm_reasoning_patch()
-    models, adapters, server = build_models(args, agent_dir, model)
+    models, adapters, server = build_models(args, agent_dir, model, part_dir / 'vllm.log')
     config = EvalConfig(
         tasks_path=args.data_dir / 'tasks.jsonl',
         snapshots_dir=args.data_dir / 'snapshots',
@@ -315,6 +331,7 @@ def main() -> None:
         result = asyncio.run(evaluator_class(config).run())
     finally:
         if server is not None:
+            server.log_path = None  # keep the log: stop() deletes the file at log_path
             server.stop()
     print(f'{args.run_name}: {result.resolved}/{result.total} resolved in this attempt')
 
