@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Competition data (symlink to scratch; download with SETUP.md)
+data
