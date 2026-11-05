@@ -113,6 +113,20 @@ Then run the full baseline, with one job per seed:
 sbatch --array=1-3 slurm/baseline.sbatch
 ```
 
+Each seed is a repeat of the same run. The model samples its answers, so the same agent solves different tasks on different runs, and three seeds show how much of a difference is chance. On one A100 with the default 4 tasks at a time, each seed takes a little over 2 hours.
+
+To check on running jobs:
+
+```bash
+squeue -u $USER
+for s in 1 2 3; do echo "seed $s: $(cat results/baseline_12b_seed$s/part-*/task_results.jsonl 2>/dev/null | wc -l)/112"; done
+python scripts/summarize.py results/baseline_12b_seed*
+```
+
+The counts should rise to `112` and `errors` should stay at `0`. `budget` counts runs that hit the time or tool call limit, which is normal. If a seed leaves `squeue` before reaching `112`, resume it with `sbatch -t 06:00:00 --array=<seed> slurm/baseline.sbatch`.
+
+The `max_time_minutes` limit in `eval_config.yaml` counts real time, and tasks running at the same time share the GPU. Keep the GPU type, `CONCURRENCY` and limits the same across experiments you compare, because changing them can change the score.
+
 The job asks for one A100. To use another GPU, add `--gres=gpu:<type>:1`, such as `h100`, `h200`, `l40s` or `a40`. Don't use `v100`, which doesn't support the `bfloat16` format this model needs, and `rtx_6000` has the same limitation as far as we know. Don't use `mi210` or `r9700`, which are AMD cards. If a job waits for a long time, ask for less: a shorter time limit with `-t`, and fewer CPUs with `-c 8 --mem=64G` and `CONCURRENCY=1`. Resubmit a job to resume it.
 
 Always use `scripts/run_eval.py` rather than `swegemma eval`, because the CLI ignores `eval_config.yaml` and leaves out context compaction and caching.
@@ -126,6 +140,48 @@ python scripts/summarize.py results/baseline_12b_seed* \
 ```
 
 This reports resolution rate and tool calls for each run, and a bootstrap interval across tasks. To make a Kaggle submission, run `python scripts/package_submission.py --agent agents/gemma_baseline`.
+
+### Saving runs
+
+Scratch can be purged, so archive each finished run in `reports/`. On PACE:
+
+```bash
+mkdir -p results/saved
+tar -czf results/saved/baseline_12b_seed1.tar.gz -C results baseline_12b_seed1
+```
+
+Then on your laptop:
+
+```bash
+scp <username>@login-ice.pace.gatech.edu:~/scratch/raser/results/saved/baseline_12b_seed1.tar.gz reports/baseline_12b/
+```
+
+Each archive has `task_results.jsonl` with one row per task, plus the agent's patches, test output and full traces. To look through one, extract it with `tar -xzf reports/baseline_12b/baseline_12b_seed1.tar.gz -C results`.
+
+### Experiment 1 results
+
+Frozen Gemma 4 12B on the 112 valid tasks, with 3 seeds on one A100. The archives are in `reports/baseline_12b/`.
+
+| | Seed 1 | Seed 2 | Seed 3 | Mean |
+|---|---|---|---|---|
+| Resolved | 24 | 19 | 20 | 21 |
+| Rate | 21.4% | 17.0% | 17.9% | **18.8%** |
+| Hit a budget limit | 87 | 90 | 90 | 89 |
+| Errors | 0 | 0 | 0 | 0 |
+
+The 95% bootstrap interval across tasks is 12.5% to 25.6%. By repo, `fastapi` scored 20.2% on 61 tasks, `rich` 15.6% on 45, `requests` 33.3% on 5 and `httpx` 0% on 1.
+
+| Passed in | Tasks |
+|---|---|
+| 0 of 3 seeds | 84 |
+| 1 of 3 | 7 |
+| 2 of 3 | 7 |
+| 3 of 3 | 14 |
+
+- **Noise:** the seeds differ by up to 4.4 points with nothing changed, so a single run of a new method needs to clearly beat that.
+- **Time limit:** in seed 1, 82 runs hit the 4-minute limit and 5 hit the 50-call limit. None of those 87 were resolved, while 24 of the 25 runs that finished within both limits were.
+- **No patch:** in seed 1, 51 of the 112 runs ended without changing any code.
+- **Training signal:** only the 14 tasks with mixed results across seeds give GRPO successes and failures to compare. Train on other tasks, such as SWE-Gym, and keep these 112 for evaluation.
 
 ## Notes for the report
 
