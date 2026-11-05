@@ -1,5 +1,7 @@
 # RASER Setup: Downloading the Competition Data
 
+> **Use the steps in `README.md` first.** They download the data with `slurm/download_data.sbatch`, and the jobs expect it directly in `data/`. These steps are a manual fallback that puts it in `data/gemma-4-developer-agent/`, so move the files up into `data/` if you use them. Keep the repo in `~/scratch/raser` rather than `~/raser`.
+
 The working method is a direct `curl` download of the competition zip into your scratch space using a `KGAT_` API token. It pulls about 21 GB, which took only minutes on the cluster (we saw roughly 170 MB/s).
 
 ## What failed, so you can skip it

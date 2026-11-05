@@ -4,6 +4,20 @@
 #   scripts/setup_env.sh --gpu  also installs vLLM (Linux with NVIDIA GPUs)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export PATH="$HOME/.local/bin:$PATH"
+
+# On PACE, keep the repo and uv's cache out of the small home quota.
+if [[ -e "$HOME/scratch" ]]; then
+  export UV_CACHE_DIR="${UV_CACHE_DIR:-$HOME/scratch/.cache/uv}"
+  case "$(pwd -P)/" in
+    "$(cd "$HOME/scratch" && pwd -P)"/*) ;;
+    *) echo "Move this repo to ~/scratch first: home is too small for it." >&2; exit 1 ;;
+  esac
+fi
+
+for tool in uv kaggle; do
+  command -v "$tool" >/dev/null || { echo "$tool is not installed. See README.md." >&2; exit 1; }
+done
 
 DATASET=metric/gemma-4-developer-agent-wheelhouse
 wheels=(swegemma-0.2.11-py3-none-any.whl adk_submission-0.2.13-py3-none-any.whl adk_eval_core-0.1.0-py3-none-any.whl)

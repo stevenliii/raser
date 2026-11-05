@@ -38,9 +38,8 @@ if [[ "$(curl -s --unix-socket "$PODMAN_DIR/podman.sock" http://d/_ping)" != "OK
   exit 1
 fi
 
-# Load the saved sandbox image, or build it if this is the first job.
-if [[ -f data/sandbox_image.tar ]]; then
-  podman load -q -i data/sandbox_image.tar
-else
-  scripts/build_sandbox.sh
+if [[ ! -f data/sandbox_image.tar ]]; then
+  echo "Missing data/sandbox_image.tar. Build it on a laptop and copy it here. See README.md." >&2
+  exit 1
 fi
+podman load -q -i data/sandbox_image.tar
