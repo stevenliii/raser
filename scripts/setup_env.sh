@@ -24,9 +24,10 @@ wheels=(swegemma-0.2.11-py3-none-any.whl adk_submission-0.2.13-py3-none-any.whl 
 gpu_pins=()
 if [[ "${1:-}" == "--gpu" ]]; then
   wheels+=(vllm-0.19.1-cp38-abi3-manylinux_2_31_x86_64.whl)
-  # Match the competition's wheelhouse. Newer transformers makes vLLM crash at startup.
+  # Newer transformers makes vLLM crash at startup, and newer fastapi breaks the
+  # instrumentator version that google-adk's starlette pin allows, failing health checks.
   gpu_pins=("transformers==5.13.1" "tokenizers==0.22.2" "compressed-tensors==0.15.0.1"
-            "safetensors==0.8.0" "mistral-common==1.11.7")
+            "safetensors==0.8.0" "mistral-common==1.11.7" "fastapi==0.136.1")
 fi
 
 mkdir -p vendor/wheels
