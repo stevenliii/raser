@@ -2,7 +2,7 @@
 
 The working method is a direct `curl` download of the competition zip into your scratch space using a `KGAT_` API token. It pulls about 21 GB, which took only minutes on the cluster (we saw roughly 170 MB/s).
 
-## What failed for us, so you can skip it
+## What failed, so you can skip it
 
 - **Saving into home.** The ICE home quota is 30 GB. The zip stopped at 16 GB with `curl: (23) Failure writing output`.
 - **Resuming that truncated file.** `unzip -t` then reported `invalid compressed data` in one entry. Delete a partial file and download fresh.
@@ -22,7 +22,7 @@ Open https://www.kaggle.com/competitions/gemma-4-developer-agent/rules and click
 
 On Kaggle go to your profile, then **Settings**, then **API**, and create a token. It starts with `KGAT_`. Treat it like a password and never commit or paste it.
 
-## Step 3: Add the token to `.env`
+## Step 3: Add the token to your own `.env`
 
 ```bash
 cd ~/raser
@@ -40,7 +40,7 @@ Leave out `KAGGLE_USERNAME` and `KAGGLE_KEY`. `.env` is gitignored.
 
 ## Step 4: Point `data/` at your scratch space
 
-Run `pace-quota` and find the **Scratch** path (ours was `/storage/ice1/4/0/dbruce32`). Then:
+Run `pace-quota` and find the **Scratch** path (mine was `/storage/ice1/4/0/dbruce32`). Then:
 
 ```bash
 D=/storage/ice1/<x>/<y>/<username>/raser-data   # use your own scratch path
