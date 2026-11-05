@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Build the sandbox image. Needs Docker and the shared files in data/.
+# Build the sandbox image with Docker if available, otherwise Podman.
+# Needs the shared files in data/. Podman builds are saved so later jobs can load them.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ -d data/docker/wheels ]] || cp -R data/wheels data/docker/wheels
-docker buildx build --platform linux/amd64 --load \
-  -f data/docker/Dockerfile.public -t swebench-sandbox:base data/docker
-docker buildx build --platform linux/amd64 --load \
-  -f docker/Dockerfile -t swebench-sandbox:latest docker
+
+if command -v docker >/dev/null; then
+  docker buildx build --platform linux/amd64 --load \
+    -f docker/Dockerfile -t swebench-sandbox:latest data/docker
+else
+  podman build --isolation chroot -f docker/Dockerfile -t swebench-sandbox:latest data/docker
+  podman save -o data/sandbox_image.tar swebench-sandbox:latest
+fi

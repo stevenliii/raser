@@ -54,5 +54,5 @@ This reports resolution rate and tool calls for each run, and a bootstrap interv
 ## Known issues
 
 - **Subprocess sandbox:** `--sandbox subprocess` skips test dependency installation and imports packages from the harness environment, so correct patches can fail. Use it only to debug the harness.
-- **PACE ICE:** the harness's sandbox talks to a Docker daemon, and we have not yet run it on PACE.
+- **PACE ICE:** PACE has no Docker, so jobs source `scripts/podman_env.sh` to get a Docker-compatible Podman socket. Test it with `mkdir -p results/slurm && sbatch slurm/test_sandbox.sbatch`.
 - **Kept out of Git:** `data/`, `vendor/`, `models/`, `results/` and submission zips.
