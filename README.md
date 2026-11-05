@@ -32,7 +32,7 @@ This saves the image to `data/sandbox_image.tar`. Build it once again after any 
 
 ## 2. Set up PACE ICE
 
-Keep the repo in scratch, not home. Home is limited to 30 GB and scratch to 300 GB. Scratch can be purged after a period of inactivity, so keep important results somewhere else too.
+Connect through the GT VPN first. Keep the repo in scratch, not home. Home is limited to 30 GB and scratch to 300 GB. The course's PACE guide also lists a maximum of 8 hours, 16 GPU hours and 512 CPU hours per job. Students shouldn't contact PACE support directly, so post questions in the course thread. Scratch can be purged after a period of inactivity, so keep important results somewhere else too.
 
 **On PACE:**
 
@@ -104,7 +104,7 @@ The agent is in `agents/gemma_baseline/`: frozen Gemma 4, the raw text transcrip
 Test one task first:
 
 ```bash
-CONCURRENCY=1 RUN_NAME=smoke sbatch slurm/baseline.sbatch --limit 1
+CONCURRENCY=1 RUN_NAME=smoke sbatch -t 00:45:00 slurm/baseline.sbatch --limit 1
 ```
 
 Then run the full baseline, with one job per seed:
@@ -113,7 +113,7 @@ Then run the full baseline, with one job per seed:
 sbatch --array=1-3 slurm/baseline.sbatch
 ```
 
-The job asks for one A100. To use another GPU, add `--gres=gpu:<type>:1`, such as `h100`, `h200`, `l40s` or `a40`. Don't use `v100`, which doesn't support the `bfloat16` format this model needs, and `rtx_6000` has the same limitation as far as we know. Don't use `mi210` or `r9700`, which are AMD cards. If a job waits for a long time, it may need fewer CPUs: add `-c 8 --mem=64G` and set `CONCURRENCY=1`. Resubmit a job to resume it.
+The job asks for one A100. To use another GPU, add `--gres=gpu:<type>:1`, such as `h100`, `h200`, `l40s` or `a40`. Don't use `v100`, which doesn't support the `bfloat16` format this model needs, and `rtx_6000` has the same limitation as far as we know. Don't use `mi210` or `r9700`, which are AMD cards. If a job waits for a long time, ask for less: a shorter time limit with `-t`, and fewer CPUs with `-c 8 --mem=64G` and `CONCURRENCY=1`. Resubmit a job to resume it.
 
 Always use `scripts/run_eval.py` rather than `swegemma eval`, because the CLI ignores `eval_config.yaml` and leaves out context compaction and caching.
 
