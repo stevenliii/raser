@@ -56,17 +56,17 @@ def main() -> None:
     if not task_ids:
         raise SystemExit('No tasks to summarize')
 
-    print(f'{"run":<32} {"tasks":>5} {"resolved":>8} {"rate":>6} {"timeouts":>8} {"errors":>6} {"calls":>6}')
+    print(f'{"run":<32} {"tasks":>5} {"resolved":>8} {"rate":>6} {"budget":>6} {"errors":>6} {"calls":>6}')
     for run, results in runs.items():
         rows = [results[t] for t in task_ids if t in results]
         solved = sum(bool(r.get('resolved')) for r in rows)
-        # A timeout is the agent using up its budget. Other errors point to the setup.
+        # Budget hits are the agent running out of time or tool calls. Other errors need a look.
         problems = [str(r['error']) for r in rows if r.get('error')]
-        timeouts = sum('session timeout' in problem for problem in problems)
-        errors = len(problems) - timeouts
+        budget = sum(problem.startswith('Agent exceeded') for problem in problems)
+        errors = len(problems) - budget
         calls = statistics.fmean(r.get('tool_calls') or 0 for r in rows) if rows else 0
         rate = solved / len(rows) if rows else 0
-        print(f'{run.name:<32} {len(rows):>5} {solved:>8} {rate:>6.1%} {timeouts:>8} {errors:>6} {calls:>6.1f}')
+        print(f'{run.name:<32} {len(rows):>5} {solved:>8} {rate:>6.1%} {budget:>6} {errors:>6} {calls:>6.1f}')
 
     per_task: dict[str, list[float]] = defaultdict(list)
     repo_of: dict[str, str] = {}
