@@ -10,12 +10,14 @@ import argparse
 import csv
 import io
 import json
+import os
 import subprocess
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 COMP = 'gemma-4-developer-agent'
+DOWNLOAD_URL = f'https://www.kaggle.com/api/v1/competitions/data/download-all/{COMP}'
 DATA = Path(__file__).resolve().parents[1] / 'data'
 SHARED = ('tasks.jsonl', 'HARNESS_README.md', 'docker/', 'sandbox/', 'wheels/')
 
@@ -54,6 +56,36 @@ def fetch(name: str) -> None:
     )
 
 
+def curl_auth_config() -> str:
+    """Return curl config with Kaggle credentials, passed on stdin to keep them out of `ps`."""
+    token = os.environ.get('KAGGLE_API_TOKEN')
+    if token:
+        return f'header = "Authorization: Bearer {token}"\n'
+    for path in (Path.home() / '.kaggle/kaggle.json', Path.home() / '.config/kaggle/kaggle.json'):
+        if path.exists():
+            creds = json.loads(path.read_text(encoding='utf-8'))
+            return f'user = "{creds["username"]}:{creds["key"]}"\n'
+    raise SystemExit('No Kaggle credentials: set KAGGLE_API_TOKEN or add kaggle.json')
+
+
+def download_all() -> None:
+    # The Kaggle CLI ran out of memory on this archive, so stream it to disk with curl.
+    archive = DATA / f'{COMP}.zip'
+    subprocess.run(
+        ['curl', '-L', '--fail', '-o', str(archive), '--config', '-', DOWNLOAD_URL],
+        input=curl_auth_config(),
+        text=True,
+        check=True,
+    )
+    with zipfile.ZipFile(archive) as zf:
+        corrupt = zf.testzip()
+        if corrupt:
+            raise SystemExit(f'Corrupt download at {corrupt}. Delete {archive} and try again.')
+        zf.extractall(DATA)
+    archive.unlink()
+    print(f'Extracted the dataset to {DATA}')
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
@@ -63,11 +95,7 @@ def main() -> None:
 
     DATA.mkdir(exist_ok=True)
     if args.all:
-        subprocess.run(['kaggle', 'competitions', 'download', COMP, '-p', str(DATA)], check=True)
-        archive = DATA / f'{COMP}.zip'
-        with zipfile.ZipFile(archive) as zf:
-            zf.extractall(DATA)
-        archive.unlink()
+        download_all()
         return
 
     names = list_files()
