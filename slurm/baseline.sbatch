@@ -2,8 +2,9 @@
 # Experiment 1: frozen Gemma on the valid tasks. Resubmit to resume.
 # Full run, one job per seed:   sbatch --array=1-3 slurm/baseline.sbatch
 # One-task test:                RUN_NAME=smoke sbatch slurm/baseline.sbatch --limit 1
-# Extra arguments go to run_eval.py. Change the GPU with sbatch --gres=gpu:<type>:1, but
-# keep it NVIDIA: ice-gpu also has AMD cards (mi210, r9700), which this vLLM can't use.
+# Extra arguments go to run_eval.py. Change the GPU with sbatch --gres=gpu:<type>:1.
+# Use h100, h200, a100, l40s or a40. Not v100 or rtx_6000: the model needs bfloat16.
+# Not mi210 or r9700: they're AMD cards.
 #SBATCH --job-name=raser-baseline
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:a100:1

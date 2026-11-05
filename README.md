@@ -113,7 +113,7 @@ Then run the full baseline, with one job per seed:
 sbatch --array=1-3 slurm/baseline.sbatch
 ```
 
-The job asks for one A100. To use another NVIDIA GPU, add `--gres=gpu:<type>:1`, such as `l40s` or `h100`. Avoid `mi210` and `r9700`, which are AMD cards. Resubmit a job to resume it.
+The job asks for one A100. To use another GPU, add `--gres=gpu:<type>:1`, such as `h100`, `h200`, `l40s` or `a40`. Don't use `v100`, which doesn't support the `bfloat16` format this model needs, and `rtx_6000` has the same limitation as far as we know. Don't use `mi210` or `r9700`, which are AMD cards. If a job waits for a long time, it may need fewer CPUs: add `-c 8 --mem=64G` and set `CONCURRENCY=1`. Resubmit a job to resume it.
 
 Always use `scripts/run_eval.py` rather than `swegemma eval`, because the CLI ignores `eval_config.yaml` and leaves out context compaction and caching.
 
